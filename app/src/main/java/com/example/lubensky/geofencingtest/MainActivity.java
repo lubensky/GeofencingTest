@@ -31,7 +31,7 @@ public class MainActivity extends AppCompatActivity implements
     static final private int RADIUS = 50;
     static final public int VIBRATE_DURATION_ENTER = 10000;
     static final public int VIBRATE_DURATION_EXIT = 5000;
-    static final private int LOITERING_DELAY = 1000;
+    static final private int LOITERING_DELAY = 10000;
     static final private String TAG = "MainActivity";
 
     /**

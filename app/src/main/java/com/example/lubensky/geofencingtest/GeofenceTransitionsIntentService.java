@@ -34,11 +34,23 @@ public class GeofenceTransitionsIntentService extends IntentService {
         Vibrator v = ( Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 
         if( geofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
-            v.vibrate( MainActivity.VIBRATE_DURATION_ENTER);
+            //v.vibrate( MainActivity.VIBRATE_DURATION_ENTER);
+            Log.i( TAG, "ENTER");
+            Intent enterIntent = new Intent( this, EnterActivity.class);
+            enterIntent.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity( enterIntent);
         } else if ( geofenceTransition == Geofence.GEOFENCE_TRANSITION_DWELL) {
-
+            Log.i( TAG, "DWELL");
+            //v.vibrate( 100);
+            Intent dwellIntent = new Intent( this, DwellActivity.class);
+            dwellIntent.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity( dwellIntent);
         } else if ( geofenceTransition == Geofence.GEOFENCE_TRANSITION_EXIT) {
-            v.vibrate( MainActivity.VIBRATE_DURATION_EXIT);
+            Log.i( TAG, "EXIT");
+            //v.vibrate( MainActivity.VIBRATE_DURATION_EXIT);
+            Intent exitIntent = new Intent( this, DwellActivity.class);
+            exitIntent.addFlags( Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity( exitIntent);
         }
     }
 }
