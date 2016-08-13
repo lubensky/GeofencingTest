@@ -1,10 +1,14 @@
 package com.example.lubensky.geofencingtest;
 
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -31,8 +35,14 @@ public class MainActivity extends AppCompatActivity implements
     static final private int RADIUS = 50;
     static final public int VIBRATE_DURATION_ENTER = 10000;
     static final public int VIBRATE_DURATION_EXIT = 5000;
+    static final public String GEOFENCE_TRANSITION_ACTION =
+            "com.example.lubensky.geofencingtest.GEOFENCE_TRANSITION_ACTION";
+    static final public String GEOFENCE_TRANSITION =
+            "com.example.lubensky.geofencingtest.GEOFENCE_TRANSITION";
     static final private int LOITERING_DELAY = 10000;
     static final private String TAG = "MainActivity";
+
+    private BroadcastReceiver receiver;
 
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
@@ -44,6 +54,27 @@ public class MainActivity extends AppCompatActivity implements
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int transition = intent.getIntExtra( GEOFENCE_TRANSITION, -1);
+
+                switch( transition) {
+                    case Geofence.GEOFENCE_TRANSITION_ENTER:
+                        Log.i( TAG, "enter");
+                        break;
+                    case Geofence.GEOFENCE_TRANSITION_DWELL:
+                        Log.i( TAG, "dwell");
+                        break;
+                    case Geofence.GEOFENCE_TRANSITION_EXIT:
+                        Log.i( TAG, "exit");
+                        break;
+                    default:
+                        Log.e( TAG, "unknown geofence transition");
+                }
+            }
+        };
 
         buildGoogleApiClient();
     }
@@ -104,15 +135,16 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onStart() {
         super.onStart();
-
+        LocalBroadcastManager.getInstance( this).registerReceiver
+                ( receiver, new IntentFilter( GEOFENCE_TRANSITION_ACTION));
         client.connect();
     }
 
     @Override
     public void onStop() {
-        super.onStop();
-
         client.disconnect();
+        LocalBroadcastManager.getInstance( this).unregisterReceiver( receiver);
+        super.onStop();
     }
 
     @Override

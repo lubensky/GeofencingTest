@@ -29,9 +29,6 @@
             android:name="com.google.android.gms.version"
             android:value="@integer/google_play_services_version" />
 
-        <activity android:name=".DwellActivity" />
-        <activity android:name=".EnterActivity" />
-        <activity android:name=".ExitActivity"></activity>
     </application>
 
 </manifest>
