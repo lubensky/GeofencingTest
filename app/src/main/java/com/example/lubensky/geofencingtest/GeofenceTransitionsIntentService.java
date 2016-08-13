@@ -3,6 +3,7 @@ package com.example.lubensky.geofencingtest;
 import android.app.IntentService;
 import android.content.Context;
 import android.content.Intent;
+import android.location.Location;
 import android.os.Vibrator;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -42,24 +43,7 @@ public class GeofenceTransitionsIntentService extends IntentService {
         Intent geofencingIntent = new Intent( MainActivity.GEOFENCE_TRANSITION_ACTION);
 
         geofencingIntent.putExtra( MainActivity.GEOFENCE_TRANSITION, geofenceTransition);
+
         broadcaster.sendBroadcast( geofencingIntent);
-
-        Vibrator v = ( Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-
-        switch( geofenceTransition) {
-            case Geofence.GEOFENCE_TRANSITION_ENTER:
-                v.vibrate( MainActivity.VIBRATE_DURATION_ENTER);
-                Log.i( TAG, "ENTER");
-                break;
-            case Geofence.GEOFENCE_TRANSITION_DWELL:
-                Log.i( TAG, "DWELL");
-                break;
-            case Geofence.GEOFENCE_TRANSITION_EXIT:
-                Log.i( TAG, "EXIT");
-                v.vibrate( MainActivity.VIBRATE_DURATION_EXIT);
-                break;
-            default:
-                Log.e( TAG, "unknown geofence transition");
-        }
     }
 }
