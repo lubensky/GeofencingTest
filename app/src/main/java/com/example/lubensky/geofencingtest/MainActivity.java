@@ -46,11 +46,11 @@ public class MainActivity extends AppCompatActivity implements
     static final private int LOCATION_UPDATE_INTERVAL = 5000;
     // prevent constant status changes from small / faulty position changes
     // home
-    static final private float DEFAULT_LATITUDE = 51.071584f;
-    static final private float DEFAULT_LONGITUDE = 13.731136f;
+//    static final private float DEFAULT_LATITUDE = 51.071584f;
+//    static final private float DEFAULT_LONGITUDE = 13.731136f;
     // monkey works
-//    static final private float DEFAULT_LATITUDE = 51.08685f;
-//    static final private float DEFAULT_LONGITUDE = 13.76392f;
+    static final private float DEFAULT_LATITUDE = 51.08685f;
+    static final private float DEFAULT_LONGITUDE = 13.76392f;
     // keys for preferences
     static final private String LAST_GEOFENCE_TRANSITION = "lastGeofenceTransition";
     static final private String LAST_STATUS = "lastStatus";
