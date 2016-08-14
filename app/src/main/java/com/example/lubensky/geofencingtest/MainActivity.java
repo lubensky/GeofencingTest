@@ -16,6 +16,8 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -75,38 +77,14 @@ public class MainActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        if( savedInstanceState != null) {
-            lastGeofenceTransition = savedInstanceState.getInt( LAST_GEOFENCE_TRANSITION);
-            lastStatus = savedInstanceState.getInt( LAST_STATUS);
+        if (savedInstanceState != null) {
+            lastGeofenceTransition = savedInstanceState.getInt(LAST_GEOFENCE_TRANSITION);
+            lastStatus = savedInstanceState.getInt(LAST_STATUS);
         }
 
-        setStatus( lastStatus);
-
-        connectUserInput();
-        readPointOfInterestFromUser();
+        setStatus(lastStatus);
         buildBroadcastReceiver();
         buildGoogleApiClient();
-    }
-
-    private void connectUserInput() {
-        EditText latitudeText = (EditText) findViewById( R.id.latitudeText);
-        EditText longitudeText = (EditText) findViewById( R.id.longitudeText);
-
-        TextWatcher textWatcher = new TextWatcher() {
-            public void afterTextChanged( Editable s) {
-                readPointOfInterestFromUser();
-                removeGeofences();
-                stopLocationUpdates();
-                addGeofences();
-            }
-
-            public void beforeTextChanged( CharSequence s, int start, int count, int after) {}
-
-            public void onTextChanged( CharSequence s, int start, int before, int count) {}
-        };
-
-        latitudeText.addTextChangedListener( textWatcher);
-        longitudeText.addTextChangedListener( textWatcher);
     }
 
     private void readPointOfInterestFromUser() {
@@ -168,7 +146,16 @@ public class MainActivity extends AppCompatActivity implements
                 .build();
     }
 
-    private void addGeofences() {
+    private void setGeofence() {
+        if( geofencingIntent != null) {
+            LocationServices.GeofencingApi.removeGeofences( client, geofencingIntent);
+
+            geofencingIntent = null;
+            setStatus( OUT_OF_GEOFENCE);
+            lastGeofenceTransition = -1;
+            stopLocationUpdates();
+        }
+
         try {
             geofencingIntent = getGeofencePendingIntent();
 
@@ -178,16 +165,6 @@ public class MainActivity extends AppCompatActivity implements
                     geofencingIntent).setResultCallback( this);
         } catch( SecurityException securityException) {
             logSecurityException( securityException);
-        }
-    }
-
-    private void removeGeofences() {
-        if (geofencingIntent != null) {
-             LocationServices.GeofencingApi.removeGeofences( client, geofencingIntent);
-
-            geofencingIntent = null;
-            setStatus( OUT_OF_GEOFENCE);
-            lastGeofenceTransition = -1;
         }
     }
 
@@ -270,7 +247,8 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         Log.i( TAG, "connected");
-        addGeofences();
+        Button setPointOfInterestButton = (Button) findViewById( R.id.setPointOfInterestButton);
+        setPointOfInterestButton.setEnabled( true);
     }
 
     @Override
@@ -354,5 +332,11 @@ public class MainActivity extends AppCompatActivity implements
         }
 
         getWindow().getDecorView().setBackgroundColor( color);
+    }
+
+    public void setPointOfInterest( View view) {
+        readPointOfInterestFromUser();
+
+        setGeofence();
     }
 }
