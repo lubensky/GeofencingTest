@@ -278,6 +278,10 @@ public class MainActivity extends AppCompatActivity implements
         Log.i( TAG, "connected to google api client");
         Button setPointOfInterestButton = (Button) findViewById( R.id.setPointOfInterestButton);
         setPointOfInterestButton.setEnabled( true);
+
+        if( lastGeofenceTransition == Geofence.GEOFENCE_TRANSITION_ENTER) {
+            startLocationUpdates();
+        }
     }
 
     @Override
