@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.Vibrator;
@@ -13,8 +14,6 @@ import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.text.Editable;
-import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -58,7 +57,6 @@ public class MainActivity extends AppCompatActivity implements
     static final int OUT_OF_GEOFENCE = 3;
 
     private int lastGeofenceTransition = -1;
-    private Location lastLocation = null;
     private float lastDistanceFromPointOfInterest = 0.0f;
     private int lastStatus = OUT_OF_GEOFENCE;
     private LatLng pointOfInterest = null;
@@ -82,9 +80,33 @@ public class MainActivity extends AppCompatActivity implements
             lastStatus = savedInstanceState.getInt(LAST_STATUS);
         }
 
+        restorePrefenrences();
+
         setStatus(lastStatus);
         buildBroadcastReceiver();
         buildGoogleApiClient();
+    }
+
+    private void restorePrefenrences() {
+        SharedPreferences preferences = getPreferences( MODE_PRIVATE);
+        double latitude = preferences.getFloat( "latitude", 51.071584f);
+        double longitude = preferences.getFloat( "longitude", 13.731136f);
+
+        pointOfInterest = new LatLng( latitude, longitude);
+
+        EditText latitudeText = (EditText) findViewById( R.id.latitudeText);
+        EditText longitudeText = (EditText) findViewById( R.id.longitudeText);
+        latitudeText.setText( String.valueOf( latitude));
+        longitudeText.setText( String.valueOf( longitude));
+    }
+
+    void storePreferences() {
+        SharedPreferences preferencs = getPreferences( MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferencs.edit();
+        editor.putFloat( "latitude", (float)pointOfInterest.latitude);
+        editor.putFloat( "longitude", (float)pointOfInterest.longitude);
+
+        editor.commit();
     }
 
     private void readPointOfInterestFromUser() {
@@ -231,9 +253,12 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onStop() {
+        super.onStop();
+
         client.disconnect();
         LocalBroadcastManager.getInstance( this).unregisterReceiver( receiver);
-        super.onStop();
+
+        storePreferences();
     }
 
     @Override
