@@ -7,17 +7,17 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Color;
 import android.location.Location;
-import android.net.Uri;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.widget.EditText;
 
-import com.google.android.gms.appindexing.Action;
-import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
@@ -28,7 +28,6 @@ import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
-import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.model.LatLng;
 
 
@@ -38,7 +37,6 @@ public class MainActivity extends AppCompatActivity implements
         LocationListener, // for LocationServices.FusedLocationApi.requestLocationUpdates
         ResultCallback<Status> { // for GeofencingApi.setResultCallback
     // home
-    static final private LatLng POINT_OF_INTEREST = new LatLng( 51.071584, 13.731136);
     static final private int RADIUS = 50;
     static final private int VIBRATE_DURATION_ENTER = 10000;
     static final private int VIBRATE_DURATION_EXIT = 5000;
@@ -61,8 +59,10 @@ public class MainActivity extends AppCompatActivity implements
     private Location lastLocation = null;
     private float lastDistanceFromPointOfInterest = 0.0f;
     private int lastStatus = OUT_OF_GEOFENCE;
+    private LatLng pointOfInterest = null;
 
     private BroadcastReceiver receiver;
+    private PendingIntent geofencingIntent = null;
 
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
@@ -82,8 +82,40 @@ public class MainActivity extends AppCompatActivity implements
 
         setStatus( lastStatus);
 
+        connectUserInput();
+        readPointOfInterestFromUser();
         buildBroadcastReceiver();
         buildGoogleApiClient();
+    }
+
+    private void connectUserInput() {
+        EditText latitudeText = (EditText) findViewById( R.id.latitudeText);
+        EditText longitudeText = (EditText) findViewById( R.id.longitudeText);
+
+        TextWatcher textWatcher = new TextWatcher() {
+            public void afterTextChanged( Editable s) {
+                readPointOfInterestFromUser();
+                removeGeofences();
+                stopLocationUpdates();
+                addGeofences();
+            }
+
+            public void beforeTextChanged( CharSequence s, int start, int count, int after) {}
+
+            public void onTextChanged( CharSequence s, int start, int before, int count) {}
+        };
+
+        latitudeText.addTextChangedListener( textWatcher);
+        longitudeText.addTextChangedListener( textWatcher);
+    }
+
+    private void readPointOfInterestFromUser() {
+        EditText latitudeText = (EditText) findViewById( R.id.latitudeText);
+        EditText longitudeText = (EditText) findViewById( R.id.longitudeText);
+        double latitude = Double.valueOf( latitudeText.getText().toString());
+        double longitude = Double.valueOf( longitudeText.getText().toString());
+
+        pointOfInterest = new LatLng( latitude, longitude);
     }
 
     protected void buildBroadcastReceiver() {
@@ -138,12 +170,24 @@ public class MainActivity extends AppCompatActivity implements
 
     private void addGeofences() {
         try {
+            geofencingIntent = getGeofencePendingIntent();
+
             LocationServices.GeofencingApi.addGeofences(
                     client,
                     getGeofencingRequest(),
-                    getGeofencePendingIntent()).setResultCallback( this);
+                    geofencingIntent).setResultCallback( this);
         } catch( SecurityException securityException) {
             logSecurityException( securityException);
+        }
+    }
+
+    private void removeGeofences() {
+        if (geofencingIntent != null) {
+             LocationServices.GeofencingApi.removeGeofences( client, geofencingIntent);
+
+            geofencingIntent = null;
+            setStatus( OUT_OF_GEOFENCE);
+            lastGeofenceTransition = -1;
         }
     }
 
@@ -161,8 +205,8 @@ public class MainActivity extends AppCompatActivity implements
         Geofence geofence = new Geofence.Builder()
                 .setRequestId( "POINT_OF_INTEREST")
                 .setCircularRegion(
-                        POINT_OF_INTEREST.latitude,
-                        POINT_OF_INTEREST.longitude,
+                        pointOfInterest.latitude,
+                        pointOfInterest.longitude,
                         RADIUS)
                 .setTransitionTypes(
                         Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT)
@@ -258,8 +302,8 @@ public class MainActivity extends AppCompatActivity implements
         Location.distanceBetween(
                 location.getLatitude(),
                 location.getLongitude(),
-                POINT_OF_INTEREST.latitude,
-                POINT_OF_INTEREST.longitude,
+                pointOfInterest.latitude,
+                pointOfInterest.longitude,
                 results);
 
         float distance = results[0];
