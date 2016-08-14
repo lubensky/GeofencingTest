@@ -37,38 +37,42 @@ public class MainActivity extends AppCompatActivity implements
         GoogleApiClient.OnConnectionFailedListener, // for GoogleApiClient.Builder.addOnConnectionFailedListener
         LocationListener, // for LocationServices.FusedLocationApi.requestLocationUpdates
         ResultCallback<Status> { // for GeofencingApi.setResultCallback
-    // home
+    static final private String TAG = "MainActivity";
     static final private int RADIUS = 50;
     static final private int VIBRATE_DURATION_ENTER = 10000;
     static final private int VIBRATE_DURATION_EXIT = 5000;
+    // can be small for high accuracy, but not too small for low accuracy, otherwise
+    // GETTING_CLOSER and MOVING_AWAY will be triggered rarely
     static final private int LOCATION_UPDATE_INTERVAL = 5000;
-    static final private float LOCATION_UPDATE_DISTANCE_THRESHOLD = 5.0f;
+    // prevent constant status changes from small / faulty position changes
+    // home
+    static final private float DEFAULT_LATITUDE = 51.071584f;
+    static final private float DEFAULT_LONGITUDE = 13.731136f;
+    // monkey works
+//    static final private float DEFAULT_LATITUDE = 51.08685f;
+//    static final private float DEFAULT_LONGITUDE = 13.76392f;
+    // keys for preferences
+    static final private String LAST_GEOFENCE_TRANSITION = "lastGeofenceTransition";
+    static final private String LAST_STATUS = "lastStatus";
+    // motion status
+    static final private int GETTING_CLOSER = 0;
+    static final private int MOVING_AWAY = 1;
+    static final private int DWELLING = 2;
+    static final private int LEAVING_GEOFENCE = 3;
+    // for the GeofenceTransitionIntentSerive
     static final public String GEOFENCE_TRANSITION_ACTION =
             "com.example.lubensky.geofencingtest.GEOFENCE_TRANSITION_ACTION";
     static final public String GEOFENCE_TRANSITION =
             "com.example.lubensky.geofencingtest.GEOFENCE_TRANSITION";
-    static final private String TAG = "MainActivity";
-    static final private String LAST_GEOFENCE_TRANSITION = "lastGeofenceTransition";
-    static final private String LAST_STATUS = "lastStatus";
-
-    static final int GETTING_CLOSER = 0;
-    static final int MOVING_AWAY = 1;
-    static final int DWELLING = 2;
-    static final int OUT_OF_GEOFENCE = 3;
 
     private int lastGeofenceTransition = -1;
     private float lastDistanceFromPointOfInterest = 0.0f;
-    private int lastStatus = OUT_OF_GEOFENCE;
-    private LatLng pointOfInterest = null;
-
+    private int lastStatus = LEAVING_GEOFENCE;
+    private LatLng pointOfInterest;
+    // communication with GeofenceTransitionsIntentService
     private BroadcastReceiver receiver;
-    private PendingIntent geofencingIntent = null;
-
-    /**
-     * ATTENTION: This was auto-generated to implement the App Indexing API.
-     * See https://g.co/AppIndexing/AndroidStudio for more information.
-     */
     private GoogleApiClient client;
+    private PendingIntent geofencingIntent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,21 +80,20 @@ public class MainActivity extends AppCompatActivity implements
         setContentView(R.layout.activity_main);
 
         if (savedInstanceState != null) {
-            lastGeofenceTransition = savedInstanceState.getInt(LAST_GEOFENCE_TRANSITION);
-            lastStatus = savedInstanceState.getInt(LAST_STATUS);
+            lastGeofenceTransition = savedInstanceState.getInt( LAST_GEOFENCE_TRANSITION);
+            lastStatus = savedInstanceState.getInt( LAST_STATUS);
         }
 
         restorePrefenrences();
-
-        setStatus(lastStatus);
+        setMotionStatus( lastStatus);
         buildBroadcastReceiver();
         buildGoogleApiClient();
     }
 
     private void restorePrefenrences() {
         SharedPreferences preferences = getPreferences( MODE_PRIVATE);
-        double latitude = preferences.getFloat( "latitude", 51.071584f);
-        double longitude = preferences.getFloat( "longitude", 13.731136f);
+        double latitude = preferences.getFloat( "latitude", DEFAULT_LATITUDE);
+        double longitude = preferences.getFloat( "longitude", DEFAULT_LONGITUDE);
 
         pointOfInterest = new LatLng( latitude, longitude);
 
@@ -100,13 +103,13 @@ public class MainActivity extends AppCompatActivity implements
         longitudeText.setText( String.valueOf( longitude));
     }
 
-    void storePreferences() {
+    private void storePreferences() {
         SharedPreferences preferencs = getPreferences( MODE_PRIVATE);
         SharedPreferences.Editor editor = preferencs.edit();
         editor.putFloat( "latitude", (float)pointOfInterest.latitude);
         editor.putFloat( "longitude", (float)pointOfInterest.longitude);
 
-        editor.commit();
+        editor.apply();
     }
 
     private void readPointOfInterestFromUser() {
@@ -118,37 +121,53 @@ public class MainActivity extends AppCompatActivity implements
         pointOfInterest = new LatLng( latitude, longitude);
     }
 
-    protected void buildBroadcastReceiver() {
-        receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                int transition = intent.getIntExtra( GEOFENCE_TRANSITION, -1);
+    private void enterGeofence() {
+        Log.i( TAG, "entering geofence");
 
-                onGeofenceTransition( transition);
-            }
-        };
+        Vibrator v = (Vibrator) getSystemService( Context.VIBRATOR_SERVICE);
+        v.vibrate( VIBRATE_DURATION_ENTER);
+        startLocationUpdates();
+    }
+
+    private void exitGeofence() {
+        Log.i( TAG, "exiting geofence");
+
+        Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        v.vibrate(MainActivity.VIBRATE_DURATION_EXIT);
+        stopLocationUpdates();
+        setMotionStatus(LEAVING_GEOFENCE);
+    }
+
+    private void startLocationUpdates() {
+        try {
+            LocationRequest request = new LocationRequest();
+            request.setInterval( LOCATION_UPDATE_INTERVAL);
+            request.setPriority( LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+            LocationServices.FusedLocationApi.requestLocationUpdates
+                    ( client, request, this);
+        } catch( SecurityException securityException) {
+            logSecurityException( securityException);
+        }
+    }
+
+    private void stopLocationUpdates() {
+        LocationServices.FusedLocationApi.removeLocationUpdates( client, this);
     }
 
     private void onGeofenceTransition(int transition) {
-        Log.i( TAG, "onGeofenceTransition: " + String.valueOf( transition));
+        Log.i( TAG, "geofence transition " + String.valueOf( transition));
 
         if (transition != lastGeofenceTransition) {
-            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-
             switch (transition) {
                 case Geofence.GEOFENCE_TRANSITION_ENTER:
-                    Log.i(TAG, "enter geofence");
-                    v.vibrate(VIBRATE_DURATION_ENTER);
-                    startLocationUpdates();
+                    enterGeofence();
                     break;
                 case Geofence.GEOFENCE_TRANSITION_DWELL:
                     Log.i(TAG, "dwelling in geofence");
                     break;
                 case Geofence.GEOFENCE_TRANSITION_EXIT:
-                    Log.i(TAG, "exiting geofence");
-                    v.vibrate(MainActivity.VIBRATE_DURATION_EXIT);
-                    stopLocationUpdates();
-                    setStatus( OUT_OF_GEOFENCE);
+                    exitGeofence();
                     break;
                 default:
                     Log.e(TAG, "unknown geofence transition");
@@ -168,18 +187,29 @@ public class MainActivity extends AppCompatActivity implements
                 .build();
     }
 
+    protected void buildBroadcastReceiver() {
+        receiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                int transition = intent.getIntExtra( GEOFENCE_TRANSITION, -1);
+
+                onGeofenceTransition( transition);
+            }
+        };
+    }
+
     private void setGeofence() {
         if( geofencingIntent != null) {
             LocationServices.GeofencingApi.removeGeofences( client, geofencingIntent);
-
-            geofencingIntent = null;
-            setStatus( OUT_OF_GEOFENCE);
+            setMotionStatus( LEAVING_GEOFENCE);
             lastGeofenceTransition = -1;
             stopLocationUpdates();
         }
 
         try {
-            geofencingIntent = getGeofencePendingIntent();
+            Intent intent = new Intent( this, GeofenceTransitionsIntentService.class);
+            geofencingIntent =  PendingIntent.getService
+                    ( this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
             LocationServices.GeofencingApi.addGeofences(
                     client,
@@ -188,12 +218,6 @@ public class MainActivity extends AppCompatActivity implements
         } catch( SecurityException securityException) {
             logSecurityException( securityException);
         }
-    }
-
-    private PendingIntent getGeofencePendingIntent() {
-        Intent intent = new Intent( this, GeofenceTransitionsIntentService.class);
-
-        return PendingIntent.getService( this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     private GeofencingRequest getGeofencingRequest() {
@@ -217,27 +241,6 @@ public class MainActivity extends AppCompatActivity implements
         return builder.build();
     }
 
-    private void startLocationUpdates() {
-        try {
-            LocationServices.FusedLocationApi.requestLocationUpdates
-                    ( client, getLocationRequest(), this);
-        } catch( SecurityException securityException) {
-            logSecurityException( securityException);
-        }
-    }
-
-    private void stopLocationUpdates() {
-        LocationServices.FusedLocationApi.removeLocationUpdates( client, this);
-    }
-
-    private LocationRequest getLocationRequest() {
-        LocationRequest request = new LocationRequest();
-        request.setInterval( LOCATION_UPDATE_INTERVAL);
-        request.setPriority( LocationRequest.PRIORITY_HIGH_ACCURACY);
-
-        return request;
-    }
-
     private void logSecurityException(SecurityException securityException) {
         Log.e(TAG, "Invalid location permission. " +
                 "You need to use ACCESS_FINE_LOCATION with geofences", securityException);
@@ -246,6 +249,7 @@ public class MainActivity extends AppCompatActivity implements
     @Override
     public void onStart() {
         super.onStart();
+
         LocalBroadcastManager.getInstance( this).registerReceiver
                 ( receiver, new IntentFilter( GEOFENCE_TRANSITION_ACTION));
         client.connect();
@@ -271,19 +275,22 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-        Log.i( TAG, "connected");
+        Log.i( TAG, "connected to google api client");
         Button setPointOfInterestButton = (Button) findViewById( R.id.setPointOfInterestButton);
         setPointOfInterestButton.setEnabled( true);
     }
 
     @Override
     public void onConnectionSuspended(int i) {
-
+        Log.i( TAG, "connection to google api client suspended");
+        Button setPointOfInterestButton = (Button) findViewById( R.id.setPointOfInterestButton);
+        setPointOfInterestButton.setEnabled( false);
     }
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-
+        Log.e( TAG, "connection to google api client failed: " +
+                connectionResult.getErrorMessage());
     }
 
     @Override
@@ -299,8 +306,6 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onLocationChanged(Location location) {
-        Log.i( TAG, "location changed");
-
         float[] results = {0.0f};
         Location.distanceBetween(
                 location.getLatitude(),
@@ -311,30 +316,28 @@ public class MainActivity extends AppCompatActivity implements
 
         float distance = results[0];
 
-        updateDistanceFromPointOfInterest( distance);
+        updateDistanceFromPointOfInterest( distance, location.getAccuracy());
     }
 
-    private void updateDistanceFromPointOfInterest( float distance) {
+    private void updateDistanceFromPointOfInterest( float distance, float accuracy) {
         float distanceDelta = distance - lastDistanceFromPointOfInterest;
 
-        Log.i( TAG, String.valueOf( distance));
-        Log.i( TAG, String.valueOf( lastDistanceFromPointOfInterest));
-        Log.i( TAG, String.valueOf( distanceDelta));
+        if ( Math.abs( distanceDelta) >= accuracy) {
+            Log.i( TAG, "moved " + String.valueOf( distanceDelta) + "m");
 
-        if ( Math.abs( distanceDelta) >= LOCATION_UPDATE_DISTANCE_THRESHOLD) {
             if( distanceDelta > 0) {
-                setStatus( MOVING_AWAY);
+                setMotionStatus( MOVING_AWAY);
             } else {
-                setStatus( GETTING_CLOSER);
+                setMotionStatus( GETTING_CLOSER);
             }
 
             lastDistanceFromPointOfInterest = distance;
         } else {
-            setStatus( DWELLING);
+            setMotionStatus( DWELLING);
         }
     }
 
-    private void setStatus( int status) {
+    private void setMotionStatus(int status) {
         lastStatus = status;
 
         int color = -1;
@@ -349,7 +352,7 @@ public class MainActivity extends AppCompatActivity implements
             case DWELLING:
                 color = Color.YELLOW;
                 break;
-            case OUT_OF_GEOFENCE:
+            case LEAVING_GEOFENCE:
                 color = Color.WHITE;
                 break;
             default:
@@ -361,7 +364,6 @@ public class MainActivity extends AppCompatActivity implements
 
     public void setPointOfInterest( View view) {
         readPointOfInterestFromUser();
-
         setGeofence();
     }
 }
