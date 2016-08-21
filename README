@@ -1,0 +1,7 @@
+First attempt at a small Android App.
+You can enter GPS coordinates and create a geofence with a radius of 50m around that location. 
+As soon as you enter the geofence, the phone will vibrate for 10s. Then location updates will be used to track your movement inside the geofence. 
+If you move towards the center, the background color will turn green. 
+If you move away from the center, it will turn red. 
+If you remain at the same distance it will turn yellow.
+When you exit the geofence the phone will vibrate for 5s and the constant location updates stop.
